@@ -1,15 +1,17 @@
 /**
  * Hill Cipher Mathematical Logic
- * Handles 2x2 and 3x3 matrices with step-by-step detail generation
+ * Handles NxN matrices (up to 5x5) with recursive calculations
  */
+
+import React from 'react';
 
 export interface MatrixStep {
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   math?: string;
   matrix?: number[][];
-  result?: string | number | number[][];
-  type: 'text' | 'mapping' | 'blocks' | 'multiplication' | 'mod' | 'final';
+  result?: string | React.ReactNode;
+  type: 'text' | 'mapping' | 'blocks' | 'multiplication' | 'mod' | 'final' | 'det' | 'inv';
 }
 
 export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -26,18 +28,28 @@ export function numToChar(num: number): string {
   return ALPHABET[mod(num, 26)];
 }
 
+/**
+ * Gets the minor of a matrix by removing specified row and column
+ */
+export function getSubMatrix(matrix: number[][], row: number, col: number): number[][] {
+  return matrix
+    .filter((_, r) => r !== row)
+    .map(r => r.filter((_, c) => c !== col));
+}
+
+/**
+ * Recursive Determinant using Laplace Expansion
+ */
 export function getDeterminant(matrix: number[][]): number {
   const n = matrix.length;
-  if (n === 2) {
-    return matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
-  } else if (n === 3) {
-    return (
-      matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-      matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-      matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
-    );
+  if (n === 1) return matrix[0][0];
+  if (n === 2) return matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
+
+  let det = 0;
+  for (let j = 0; j < n; j++) {
+    det += (j % 2 === 0 ? 1 : -1) * matrix[0][j] * getDeterminant(getSubMatrix(matrix, 0, j));
   }
-  return 0;
+  return det;
 }
 
 export function modInverse(a: number, m: number): number {
@@ -50,30 +62,23 @@ export function modInverse(a: number, m: number): number {
   return -1;
 }
 
+/**
+ * Gets the Adjugate (Transposed Cofactor Matrix)
+ */
 export function getAdjugate(matrix: number[][]): number[][] {
   const n = matrix.length;
-  if (n === 2) {
-    return [
-      [matrix[1][1], -matrix[0][1]],
-      [-matrix[1][0], matrix[0][0]],
-    ];
-  } else {
-    // 3x3 Co-factor matrix then transpose
-    const adj: number[][] = Array(3).fill(0).map(() => Array(3).fill(0));
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        const sub: number[] = [];
-        for (let r = 0; r < 3; r++) {
-          for (let c = 0; c < 3; c++) {
-            if (r !== i && c !== j) sub.push(matrix[r][c]);
-          }
-        }
-        const cofactor = sub[0] * sub[3] - sub[1] * sub[2];
-        adj[j][i] = ((i + j) % 2 === 0 ? 1 : -1) * cofactor; // Transpose included (adj[j][i])
-      }
+  const adj: number[][] = Array(n).fill(0).map(() => Array(n).fill(0));
+
+  if (n === 1) return [[1]];
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const sub = getSubMatrix(matrix, i, j);
+      const cofactor = ((i + j) % 2 === 0 ? 1 : -1) * getDeterminant(sub);
+      adj[j][i] = cofactor; // Transpose: element (i,j) of cofactor matrix is (j,i) of adjugate
     }
-    return adj;
   }
+  return adj;
 }
 
 export function getMatrixInverse(matrix: number[][]): number[][] | null {
